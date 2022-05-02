@@ -1,0 +1,93 @@
+SELECT *
+FROM dailyActivity_merged;
+
+-- checking for duplicates in daily_activity,dailyCalories_merged,dailyIntensities_merged,dailySteps_merged
+
+SELECT Id, ActivityDate, TotalSteps, Count(*)
+FROM dailyActivity_merged
+GROUP BY id, ActivityDate, TotalSteps
+HAVING Count(*) > 1; 
+
+SELECT Count(*)
+FROM dailyCalories_merged
+GROUP BY id, ActivityDay, calories
+HAVING Count(*) > 1; 
+
+SELECT Count(*)
+FROM dailyIntensities_merged
+GROUP BY id, ActivityDay
+HAVING Count(*) > 1; 
+
+SELECT Count(*)
+FROM dailySteps_merged
+GROUP BY id, ActivityDay
+HAVING Count(*) > 1; 
+
+-- round to only 2 digit after ","
+
+UPDATE dailyActivity_merged SET TotalDistance = ROUND(TotalDistance, 2), TrackerDistance = ROUND(TrackerDistance, 2)
+UPDATE dailyActivity_merged SET VeryActiveDistance = ROUND(VeryActiveDistance, 2), ModeratelyActiveDistance = ROUND(ModeratelyActiveDistance, 2), LightActiveDistance = ROUND(LightActiveDistance,2)
+
+-- Checking to see if there are irregularities in the distance. Total distance should be equal with the sum of all three types of activity. That should be apply to tracker distance too.
+
+UPDATE dailyActivity_merged SET TotalDistance = VeryActiveDistance + ModeratelyActiveDistance + LightActiveDistance WHERE TotalDistance <> VeryActiveDistance + ModeratelyActiveDistance + LightActiveDistance
+UPDATE dailyActivity_merged SET TrackerDistance = VeryActiveDistance + ModeratelyActiveDistance + LightActiveDistance WHERE TrackerDistance <> VeryActiveDistance + ModeratelyActiveDistance + LightActiveDistance
+
+SELECT * FROM sleepDay_merged
+
+ALTER TABLE sleepDay_merged ADD SleepDate Date
+
+UPDATE sleepDay_merged SET SleepDate = CAST(SleepDay AS Date)
+
+ALTER TABLE sleepDay_merged DROP COLUMN SleepDay
+
+SELECT DISTINCT id,COUNT(SleepDate) FROM sleepDay_merged GROUP BY id HAVING COUNT(SleepDate) <> 31
+
+-- relation between calories burnt and active hours
+
+SELECT id, AVG(Calories) avg_daily_calories_burnt, AVG(VeryActiveDistance+LightActiveDistance+ModeratelyActiveDistance) avg_km_travelled, AVG(VeryActiveMinutes+FairlyActiveMinutes+LightlyActiveMinutes) avg_minutes_activity, AVG(VeryActiveMinutes+FairlyActiveMinutes+LightlyActiveMinutes)/60 avg_hours_activity
+FROM dailyActivity_merged
+GROUP BY id
+
+-- four types of users based on the step count
+
+
+WITH TypeOfUserCTE AS(
+SELECT id, SUM(TotalSteps)/31 AS TotalStepsAvg FROM dailyActivity_merged
+ GROUP BY id )
+SELECT id, CASE WHEN TotalStepsAvg < 5000 THEN 'Sedentary' 
+WHEN TotalStepsAvg BETWEEN 5001 AND 7500 THEN 'Lightly Active' 
+WHEN TotalStepsAvg BETWEEN 7501 AND 10000 THEN 'Fairly Active' 
+WHEN TotalStepsAvg> 10001 THEN 'Very Active' END AS type_of_user INTO TypeOfUserTEMP FROM TypeOfUserCTE
+
+SELECT a.id, a.TotalSteps, a.TotalDistance, a.TrackerDistance, a.VeryActiveDistance, a.ModeratelyActiveDistance, a.LightActiveDistance, a.VeryActiveMinutes, a.FairlyActiveMinutes, a.LightlyActiveMinutes, a.SedentaryMinutes, a.Calories, a.ActivityDay, t.type_of_user INTO #dailyActivity_merged
+from dailyActivity_merged as a
+JOIN TypeOfUserTEMP as t 
+ON a.id=t.id
+
+SELECT * FROM dailyActivity_merged
+
+-- calories burnt per user type
+
+SELECT id, AVG(Calories) avg_calories, type_of_user into CaloriesPerUserType
+FROM dailyActivity_merged
+GROUP BY id, type_of_user
+
+SELECT AVG(avg_calories), type_of_user 
+FROM CaloriesPerUserType 
+GROUP BY type_of_user
+
+-- sleep trends
+
+SELECT id, AVG(TotalMinutesAsleep)/60, AVG(TotalTimeInBed)/60, SleepDay
+FROM sleepDay_merged
+GROUP BY id, SleepDay
+
+SELECT * FROM sleepDay_merged$
+
+SELECT a.type_of_user, AVG(s.TotalMinutesAsleep)/60 
+FROM dailyActivity_merged as a 
+join sleepDay_merged as s 
+ON a.id=s.id 
+GROUP BY type_of_user
+
