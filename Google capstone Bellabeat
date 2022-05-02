@@ -83,7 +83,7 @@ SELECT id, AVG(TotalMinutesAsleep)/60, AVG(TotalTimeInBed)/60, SleepDay
 FROM sleepDay_merged
 GROUP BY id, SleepDay
 
-SELECT * FROM sleepDay_merged$
+SELECT * FROM sleepDay_merged
 
 SELECT a.type_of_user, AVG(s.TotalMinutesAsleep)/60 
 FROM dailyActivity_merged as a 
